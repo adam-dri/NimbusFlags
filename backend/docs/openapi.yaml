@@ -1,0 +1,75 @@
+openapi: 3.1.0
+info:
+  title: NimbusFlags API
+  version: 0.1.0
+servers:
+  - url: http://localhost:8000
+
+paths:
+  /health/:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+
+  /admin/flags/:
+    post:
+      summary: Upsert a flag configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: /schemas/flag_config.schema.json
+      responses:
+        '200': { description: OK }
+        '400': { description: Bad request }
+
+  /admin/flags/{key}:
+    get:
+      summary: Get flag by key
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Flag config
+          content:
+            application/json:
+              schema:
+                $ref: /schemas/flag_config.schema.json
+        '404': { description: Not found }
+
+  /evaluate/:
+    post:
+      summary: Evaluate a flag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: /schemas/EvaluateRequest.schema.json
+      responses:
+        '200':
+          description: Evaluation result
+          content:
+            application/json:
+              schema:
+                $ref: /schemas/EvaluateResponse.schema.json
+        '400': { description: Bad request }
+        '404': { description: Not found }

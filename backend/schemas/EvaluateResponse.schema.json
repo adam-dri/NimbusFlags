@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EvaluateResponse (MVP)",
+  "type": "object",
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": { "enabled": { "const": false } }
+    },
+    {
+      "type": "object",
+      "required": ["enabled", "parameters"],
+      "properties": {
+        "enabled": { "const": true },
+        "parameters": { "type": "object" }
+      }
+    }
+  ]
+}
