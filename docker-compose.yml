@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nimbusflags_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      - db
+    environment:
+      # Important: override DATABASE_URL for the container
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/nimbusflags_dev
+      BACKEND_PORT: 8000
+      DEBUG: "true"
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:

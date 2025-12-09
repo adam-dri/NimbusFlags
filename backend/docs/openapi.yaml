@@ -1,14 +1,104 @@
+# NimbusFlags/backend/docs/openapi.yaml
 openapi: 3.1.0
 info:
   title: NimbusFlags API
   version: 0.1.0
+
 servers:
-  - url: http://localhost:8000
+  - url: http://127.0.0.1:8000
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+    SessionTokenAuth:
+      type: apiKey
+      in: header
+      name: X-Session-Token
+
+  schemas:
+    Client:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        subscription_tier:
+          type: string
+          example: free
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - subscription_tier
+        - active
+        - created_at
+
+    ClientSignupRequest:
+      $ref: /schemas/client_signup_request.schema.json
+
+    ClientSignupResponse:
+      type: object
+      properties:
+        client:
+          $ref: '#/components/schemas/Client'
+        api_key:
+          type: string
+          example: nf_live_xxxxxxxxxxxxxxxxx
+      required:
+        - client
+        - api_key
+
+    FlagConfig:
+      $ref: /schemas/flag_config.schema.json
+
+    EvaluateRequest:
+      $ref: /schemas/EvaluateRequest.schema.json
+
+    EvaluateResponse:
+      $ref: /schemas/EvaluateResponse.schema.json
+
+    AuthLoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: demo@example.com
+        password:
+          type: string
+          minLength: 8
+          example: secure_password_123
+      required:
+        - email
+        - password
+
+    AuthLoginResponse:
+      type: object
+      properties:
+        session_token:
+          type: string
+          example: nsess_abc123exampleToken
+        client:
+          $ref: '#/components/schemas/Client'
+      required:
+        - session_token
+        - client
 
 paths:
   /health/:
     get:
       summary: Health check
+      description: Simple liveness probe for the NimbusFlags backend.
       responses:
         '200':
           description: OK
@@ -16,60 +106,239 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: false
-                required: [status]
                 properties:
                   status:
                     type: string
-                    enum: [ok]
+                    example: ok
 
-  /admin/flags/:
+  /clients/signup:
     post:
-      summary: Upsert a flag configuration
+      summary: Register a new client (tenant)
+      description: |
+        Create a new client (tenant) and return its profile along with a freshly
+        generated API key. The API key is returned only once and must be stored
+        securely by the client.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: /schemas/flag_config.schema.json
+              $ref: '#/components/schemas/ClientSignupRequest'
       responses:
-        '200': { description: OK }
-        '400': { description: Bad request }
+        '201':
+          description: Client created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientSignupResponse'
+        '400':
+          description: Invalid payload (e.g. invalid email or password too short)
+        '409':
+          description: Email already in use
+
+  /clients/me:
+    get:
+      summary: Get current client profile
+      description: |
+        Returns the profile of the client associated with the provided API key.
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Client profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  client:
+                    $ref: '#/components/schemas/Client'
+        '401':
+          description: Missing or invalid API key
+
+  /admin/flags/:
+    post:
+      summary: Create or update a feature flag (upsert)
+      description: |
+        Create or update a feature flag for the current client (tenant)
+        identified by the API key.
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlagConfig'
+      responses:
+        '200':
+          description: Flag created or updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlagConfig'
+        '400':
+          description: Invalid flag payload
+        '401':
+          description: Missing or invalid API key
+    get:
+      summary: List flags for the current client
+      description: |
+        Returns a paginated list of flags belonging to the client associated
+        with the provided API key.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          required: false
+          description: Maximum number of flags to return.
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+          required: false
+          description: Offset for pagination.
+      responses:
+        '200':
+          description: List of flags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FlagConfig'
+        '401':
+          description: Missing or invalid API key
 
   /admin/flags/{key}:
     get:
-      summary: Get flag by key
+      summary: Get a specific flag by key
+      description: |
+        Retrieve a single flag by its key for the current client.
+      security:
+        - ApiKeyAuth: []
       parameters:
         - in: path
           name: key
           required: true
+          description: Flag key (unique per client).
           schema:
             type: string
-            minLength: 1
       responses:
         '200':
-          description: Flag config
+          description: Flag found
           content:
             application/json:
               schema:
-                $ref: /schemas/flag_config.schema.json
-        '404': { description: Not found }
+                $ref: '#/components/schemas/FlagConfig'
+        '401':
+          description: Missing or invalid API key
+        '404':
+          description: Flag not found for this client
+    delete:
+      summary: Delete a flag by key
+      description: |
+        Delete a flag for the current client. If the flag does not exist,
+        a 404 is returned.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: key
+          required: true
+          description: Flag key (unique per client).
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Flag deleted
+        '401':
+          description: Missing or invalid API key
+        '404':
+          description: Flag not found for this client
 
   /evaluate/:
     post:
-      summary: Evaluate a flag
+      summary: Evaluate a flag for a given user context
+      description: |
+        Evaluate whether a feature flag should be enabled for a particular user
+        given their attributes, and return the flag state and parameters.
+      security:
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: /schemas/EvaluateRequest.schema.json
+              $ref: '#/components/schemas/EvaluateRequest'
       responses:
         '200':
           description: Evaluation result
           content:
             application/json:
               schema:
-                $ref: /schemas/EvaluateResponse.schema.json
-        '400': { description: Bad request }
-        '404': { description: Not found }
+                $ref: '#/components/schemas/EvaluateResponse'
+        '400':
+          description: Invalid request payload
+        '401':
+          description: Missing or invalid API key
+        '404':
+          description: Flag not found for this client
+
+  /auth/login:
+    post:
+      summary: Log in a client and create a session
+      description: |
+        Authenticate a client using an email/password pair and create
+        a new session. Returns a session token and the client profile
+        on success.
+
+        The returned `session_token` is meant to be stored securely on
+        the frontend (for example, in an HTTP-only cookie on the
+        dashboard domain) and sent back in the `X-Session-Token`
+        header for subsequent authenticated dashboard requests.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthLoginResponse'
+        '400':
+          description: Missing email or password
+        '401':
+          description: Invalid email or password
+
+  /auth/logout:
+    post:
+      summary: Log out the current session
+      description: |
+        Revoke the session associated with the provided session token.
+
+        This endpoint is idempotent: calling it multiple times with
+        the same token will always return `204 No Content` once the
+        session has been removed or is already invalid.
+      parameters:
+        - in: header
+          name: X-Session-Token
+          required: true
+          description: Session token returned by `/auth/login`.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Session successfully revoked (or already invalid)
+        '400':
+          description: Missing or malformed session token

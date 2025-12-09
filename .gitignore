@@ -1,3 +1,19 @@
-.DS_Store
+# Virtualenv
+venv/
+.env/
+.env
+.env.*
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE / OS
 .vscode/
 .idea/
+.DS_Store

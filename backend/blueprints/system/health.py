@@ -1,6 +1,9 @@
+# NimbusFlags/backend/blueprints/system/health.py
+
 from flask import Blueprint, jsonify
 
 health_bp = Blueprint("health_bp", __name__, url_prefix="/health")
+
 
 @health_bp.get("/")
 def health() -> jsonify:
