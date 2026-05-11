@@ -35,7 +35,7 @@ def validate_flag_config(payload: dict) -> None:
         BadRequest: If payload is not an object pr violates the schema.
     """
     if not isinstance(payload, dict):
-        raise BadRequest("Body myst be a JSON object.")
+        raise BadRequest("Body must be a JSON object.")
 
     try:
         js_validate(instance=payload, schema=FLAG_CONFIG_SCHEMA)

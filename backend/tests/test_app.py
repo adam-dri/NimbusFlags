@@ -228,7 +228,7 @@ def test_clients_me_returns_current_client_profile(client):
     assert "created_at" in client_payload
 
 
-def test_auth_login_succes(client):
+def test_auth_login_success(client):
     """
     Login returns 200 and a session_token for valid credentials.
     """
@@ -258,7 +258,7 @@ def test_auth_login_succes(client):
     assert client_obj["active"] is True
 
 
-def test_auth_login_wrond_password(client):
+def test_auth_login_wrong_password(client):
     """
     Login returns 401 when the password is incorrect.
     """
@@ -283,7 +283,7 @@ def test_auth_login_wrond_password(client):
 
 
 
-def test_auth_login_unkown_email(client):
+def test_auth_login_unknown_email(client):
     """No signup for this email on purpose"""
     login_payload = {
         "email": "unknown@example.com",

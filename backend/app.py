@@ -27,13 +27,30 @@ def create_app() -> Flask:
     """Create and configure the NimbusFlags Flask application instance.
 
     This factory loads environment variables, registers blueprints,
-    and applies global error handlers.
+    applies CORS for local frontends, and registers global error handlers.
 
     Returns:
         Flask: A configured Flask application instance.
     """
     load_dotenv()
     app = Flask(__name__)
+
+    # Allow local React development frontends to call this API directly.
+    # In production, CORS should be enforced at the reverse proxy layer.
+    CORS(
+        app,
+        resources={
+            r"/*": {
+                "origins": [
+                    "http://localhost:3000",
+                    "http://localhost:5173",
+                ],
+            },
+        },
+        supports_credentials=False,
+        allow_headers=["Content-Type", "X-Api-Key", "X-Session-Token"],
+        methods=["GET", "POST", "DELETE", "OPTIONS"],
+    )
 
     # Register JSON error handlers (400/404/500, etc.).
     register_error_handlers(app)
@@ -59,23 +76,6 @@ def create_app() -> Flask:
 
 if __name__ == "__main__":
     app = create_app()
-
-    # Allow local React development frontends to call this API directly.
-    # In production, CORS should be enforced at the reverse proxy layer.
-    CORS(
-        app,
-        resources={
-            r"/*": {
-                "origins": [
-                    "http://localhost:3000",
-                    "http://localhost:5173",
-                ],
-            },
-        },
-        supports_credentials=False,
-        allow_headers=["Content-Type", "X-Api-Key", "X-Session-Token",],
-        methods=["GET", "POST", "DELETE", "OPTIONS"],
-    )
 
     # HTTP server configuration derived from environment variables.
     port = int(os.getenv("BACKEND_PORT", "8000"))

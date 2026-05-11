@@ -94,7 +94,7 @@ def require_api_key(func: F) -> F:
         if client is None:
             response = jsonify(
                 {
-                    "error": "Invalide or missing API key",
+                    "error": "Invalid or missing API key",
                     "code": "auth.api_key_invalid",
                 }
             )

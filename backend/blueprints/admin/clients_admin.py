@@ -86,14 +86,14 @@ def post_signup() -> tuple[Response, int]:
         )
 
     if not password:
-        return (
-            jsonify({
-                "error": "Password cannot be empty.",
-                "code": "clients.invalide_password",
-                }
-            ),
-            400,
-        )
+            return (
+                jsonify({
+                    "error": "Password cannot be empty.",
+                    "code": "clients.invalid_password",
+                    }
+                ),
+                400,
+            )
 
     try:
         client, api_key_plain = register_client(email=email, password=password)
