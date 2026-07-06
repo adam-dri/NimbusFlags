@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from flask import Blueprint, jsonify, request, g, Response
-from services.auth_service import require_api_key
+from services.auth_service import require_client_auth
 
 
 try:
@@ -129,18 +129,18 @@ def post_signup() -> tuple[Response, int]:
 
 
 @clients_admin_bp.get("/me")
-@require_api_key
+@require_client_auth
 def get_current_client_profile():
     """Fetch the profile of the current authenticated client.
 
     Auth:
-        Requires a valid ``X-Api-Key`` header set on the request.
-        The ``require_api_key`` decorator attaches the authenticated
-        client object to ``flask.g`` as ``g.client``.
+        Requires a valid ``X-Session-Token`` or ``X-Api-Key`` header set
+        on the request. The ``require_client_auth`` decorator attaches
+        the authenticated client object to ``flask.g`` as ``g.client``.
 
     Returns:
         tuple[Response, int]: JSON response containing the client profile
         and the HTTP status code 200.
     """
-    client = g.client  # Set by require_api_key
+    client = g.client  # Set by require_client_auth
     return jsonify({"client": _client_to_dict(client)}), 200

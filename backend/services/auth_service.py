@@ -27,18 +27,14 @@ try:  # pragma: no cover - import-path handling
     from backend.services.clients_service import (
         Client,
         resolve_client_by_api_key,
+        resolve_client_by_session_token,
     )
-    from backend.services.sessions_service import get_session_for_token
-    from backend.repositories import clients_repo
 except ImportError:  # pragma: no cover - app.py / direct execution
     from services.clients_service import (
         Client,
         resolve_client_by_api_key,  # type: ignore[no-redef]
+        resolve_client_by_session_token,  # type: ignore[no-redef]
     )
-    from services.sessions_service import (
-        get_session_for_token,  # type: ignore[no-redef]
-    )
-    from repositories import clients_repo  # type: ignore[no-redef]
 
 
 F = TypeVar("F", bound=Callable[..., object])
@@ -49,7 +45,7 @@ def get_current_client() -> Optional[Client]:
 
     This helper reads the ``g.client`` attribute that is populated by
     authentication decorators such as :func:`require_api_key` or
-    :func:`require_session`.
+    :func:`require_client_auth`.
 
     Returns:
         Optional[Client]: The currently authenticated client, or ``None``
@@ -122,101 +118,50 @@ def _get_session_token_from_request() -> Optional[str]:
     return token or None
 
 
-def require_session(func: F) -> F:
-    """Require a valid dashboard session for human (UI) requests.
+def require_client_auth(func: F) -> F:
+    """Flask view decorator accepting session token OR API key auth.
 
-    This decorator is intended for routes that are called by the React
-    dashboard, where users authenticate via email/password and receive
-    a short-lived session token. It is **complementary** to
-    :func:`require_api_key`, which is kept for machine clients.
+    This is the decorator used by routes shared between the React
+    dashboard (which sends ``X-Session-Token``) and machine clients
+    (which send ``X-Api-Key``).
 
     Behaviour:
-        * Reads the token from ``X-Session-Token`` header.
-        * Looks up a non-expired session via :func:`get_session_for_token`.
-        * Resolves the associated client record from the ``clients`` table.
-        * On success, attaches ``g.client`` and ``g.client_id``.
-        * On failure, returns a JSON ``401 Unauthorized`` response.
-
-    Error responses use stable codes that can be asserted in tests:
-
-    * Missing token:
-
-        .. code-block:: json
-
-            {
-                "error": "Invalid or missing session token",
-                "code": "auth.session_missing"
-            }
-
-    * Invalid or expired token:
-
-        .. code-block:: json
-
-            {
-                "error": "Invalid or expired session token",
-                "code": "auth.session_invalid"
-            }
-
-    * Client not found for a valid session (rare edge case):
-
-        .. code-block:: json
-
-            {
-                "error": "Client not found for session",
-                "code": "auth.session_client_missing"
-            }
+        * If ``X-Session-Token`` is present, resolves the client via
+          :func:`resolve_client_by_session_token`.
+        * Otherwise, if ``X-Api-Key`` is present, resolves the client
+          via :func:`resolve_client_by_api_key`.
+        * If no client could be resolved -> returns ``401`` with a JSON
+          error (``{"error": "Unauthorized", "code": "auth.required"}``).
+        * On success, attaches ``g.client`` and ``g.client_id`` and
+          calls the wrapped view.
 
     Args:
         func: The view function to wrap.
 
     Returns:
-        F: The wrapped view function that enforces session-based
-        authentication.
+        F: The wrapped view function that enforces client authentication.
     """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        raw_token = _get_session_token_from_request()
-        if raw_token is None:
+        client: Optional[Client] = None
+
+        session_token = _get_session_token_from_request()
+        if session_token is not None:
+            client = resolve_client_by_session_token(session_token)
+        else:
+            api_key = request.headers.get("X-Api-Key", "").strip()
+            if api_key:
+                client = resolve_client_by_api_key(api_key)
+
+        if client is None:
             response = jsonify(
                 {
-                    "error": "Invalid or missing session token",
-                    "code": "auth.session_missing",
+                    "error": "Unauthorized",
+                    "code": "auth.required",
                 }
             )
             return response, 401
-
-        session = get_session_for_token(raw_token)
-        if session is None:
-            response = jsonify(
-                {
-                    "error": "Invalid or expired session token",
-                    "code": "auth.session_invalid",
-                }
-            )
-            return response, 401
-
-        # Fetch the client associated with this session.
-        row = clients_repo.get_client_by_id(session.client_id)
-        if row is None:
-            # Session exists but client was deleted or is unreachable.
-            response = jsonify(
-                {
-                    "error": "Client not found for session",
-                    "code": "auth.session_client_missing",
-                }
-            )
-            return response, 401
-
-        client = Client(
-            id=row["id"],
-            email=row["email"],
-            password_hash=row["password_hash"],
-            api_key_hash=row["api_key_hash"],
-            subscription_tier=row["subscription_tier"],
-            active=row["active"],
-            created_at=row["created_at"],
-        )
 
         # Attach client to the request context (same convention as API keys).
         g.client = client

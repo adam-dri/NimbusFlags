@@ -328,3 +328,39 @@ def test_auth_logout_with_valid_token(client):
 
     # Logout is idempotent and returns no body
     assert resp.status_code == 204
+
+
+def test_admin_flags_with_session_token(client):
+    """
+    A logged-in client can list flags using X-Session-Token (dashboard auth).
+    """
+    # 1) Signup + login to obtain a session token
+    email = f"session-flags-{uuid.uuid4().hex}@example.com"
+    resp = client.post(
+        "/clients/signup",
+        json={"email": email, "password": "secret123"},
+    )
+    assert resp.status_code == 201
+
+    resp = client.post(
+        "/auth/login",
+        json={"email": email, "password": "secret123"},
+    )
+    assert resp.status_code == 200
+    session_token = resp.get_json()["session_token"]
+
+    # 2) List flags with the session token instead of the API key
+    resp = client.get(
+        "/admin/flags/",
+        headers={"X-Session-Token": session_token},
+    )
+    assert resp.status_code == 200
+    assert isinstance(resp.get_json(), list)
+
+
+def test_admin_flags_requires_auth(client):
+    """
+    Listing flags without X-Session-Token or X-Api-Key returns 401.
+    """
+    resp = client.get("/admin/flags/")
+    assert resp.status_code == 401

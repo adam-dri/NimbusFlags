@@ -13,7 +13,7 @@ from typing import Any
 from flask import Blueprint, request, jsonify, g
 
 from validators.flag_config_validator import validate_flag_config
-from services.auth_service import require_api_key
+from services.auth_service import require_client_auth
 from repositories import postgres_flags_repo
 
 
@@ -42,11 +42,11 @@ def _serialize_flag(row: dict) -> dict:
 
 
 @flags_admin_bp.post("/")
-@require_api_key
+@require_client_auth
 def post_upsert_flag() -> tuple[Any, int]:
     """Create or update a flag configuration for the authenticated client.
 
-    - Requires a valid X-Api-Key header.
+    - Requires a valid X-Session-Token or X-Api-Key header.
     - Validates the payload against flag_config.schema.json
       via validate_flag_config.
     - Uses postgres_flags_repo.upsert_flag(client_id, flag_data).
@@ -71,7 +71,7 @@ def post_upsert_flag() -> tuple[Any, int]:
 
 
 @flags_admin_bp.get("/")
-@require_api_key
+@require_client_auth
 def list_flags() -> tuple[Any, int]:
     """
     List flags for the authenticated client.
@@ -105,7 +105,7 @@ def list_flags() -> tuple[Any, int]:
 
 
 @flags_admin_bp.get("/<string:key>")
-@require_api_key
+@require_client_auth
 def get_flag_by_key(key: str) -> tuple[Any, int]:
     """Retrieve a flag configuration by its key for the authenticated client.
 
@@ -134,7 +134,7 @@ def get_flag_by_key(key: str) -> tuple[Any, int]:
 
 
 @flags_admin_bp.delete("/<string:key>")
-@require_api_key
+@require_client_auth
 def delete_flag(key: str) -> tuple[str, int]:
     """Delete a flag by its key for the authenticated client.
 

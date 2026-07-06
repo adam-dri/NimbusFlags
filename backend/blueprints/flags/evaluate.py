@@ -12,7 +12,7 @@ from typing import Any
 from flask import Blueprint, jsonify, g, request
 
 from repositories import postgres_flags_repo
-from services.auth_service import require_api_key
+from services.auth_service import require_client_auth
 from services.flag_service import evaluate_flag
 from validators.evaluate_validator import validate_eval_payload
 
@@ -21,7 +21,7 @@ evaluate_bp = Blueprint("evaluate_bp", __name__, url_prefix="/evaluate")
 
 
 @evaluate_bp.post("/")
-@require_api_key
+@require_client_auth
 def post_evaluate() -> tuple[Any, int]:
     """Evaluate a flag for a user (public API).
 
@@ -32,7 +32,8 @@ def post_evaluate() -> tuple[Any, int]:
         }
 
     Behaviour:
-        - Requires a valid ``X-Api-Key`` header (tenant authentication).
+        - Requires a valid ``X-Session-Token`` or ``X-Api-Key`` header
+          (tenant authentication).
         - Looks up the flag for the authenticated client in Postgres.
         - Returns 404 with {"error": "NotFound"} if the flag does not exist.
         - Otherwise applies the flag evaluation logic and returns 200
